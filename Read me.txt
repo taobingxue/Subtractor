@@ -1,0 +1,5 @@
+An aplication for background subtraction.
+
+Use and modified the lib: https://bitbucket.org/pierre_luc_st_charles/subsense
+Copyright (c) 2014, P.-L. St-Charles (pierre-luc.st-charles@polymtl.ca) 
+All rights reserved.
