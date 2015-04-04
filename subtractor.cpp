@@ -28,7 +28,7 @@ const char* keys = {
 string getpath(string fileName, int inumLength, int inumNow) {
 	string snumNow = to_string(inumNow);
 	int ilength = snumNow.length();
-	if (inumLength > inumNow) return fileName.append(inumLength - ilength, '0') + snumNow + ".jpg";
+	if (inumLength > ilength) return fileName.append(inumLength - ilength, '0') + snumNow + ".jpg";
 	else return fileName+snumNow;
 }
 void test(cv::Mat aa) {
@@ -53,17 +53,17 @@ int main(int argc, char* argv[]) {
     cv::Mat oCurrInputFrame, oCurrSegmMask, oCurrReconstrBGImg, oROI;
 	parser.printParams();
 	// initialization
-	oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow), CV_8UC1);
-	oROI = cv::Mat(oCurrInputFrame.size(),CV_8UC1,cv::Scalar_<uchar>(255));
-    oCurrSegmMask.create(oCurrInputFrame.size(),CV_8UC1);
+	oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow));
+	oCurrSegmMask.create(oCurrInputFrame.size(),CV_8UC1);
     oCurrReconstrBGImg.create(oCurrInputFrame.size(),oCurrInputFrame.type());
+	oROI = cv::Mat(oCurrInputFrame.size(),CV_8UC1,cv::Scalar_<uchar>(255));
 	
 	BackgroundSubtractorSuBSENSE oSubtractor;
 	oSubtractor.initialize(oCurrInputFrame, oROI);
-	cout<< "000" <<endl;
+	cout<< oCurrInputFrame.channels() <<endl;
 	for (iNumNow++; ; iNumNow++) {
 		// read new frame
-		oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow), CV_8UC1);
+		oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow));
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
 		// motion compensate
 		
