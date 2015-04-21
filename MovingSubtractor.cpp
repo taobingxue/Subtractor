@@ -23,7 +23,7 @@ void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) 
 	outputInformation("initialize finished\n");
 }
 
-void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, double learningRateOverride) {
+void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv::Mat &delta, double learningRateOverride) {
 	outputInformation("operate started\n");
 	cv::Mat newFrame = _newFrame.getMat();
 	vector<uchar> status; 	// status of tracked features
@@ -93,39 +93,36 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 			sort(dSortedTransforms[i][j].begin(), dSortedTransforms[i][j].end());
 	// find features
 	vector<cv::Point2f> selectedFeaturesI, selectedFeaturesO;
-	int iS = (int) isegLength / 3.8, iE = isegLength - iS;
-	outputInformation("range iS = ", iS);
-	outputInformation("range iE = ", iE);
-
-	/*freopen("a.out", "w", stdout);
-
-					for (int ia = 0; ia < 2; ia ++) {
-						for (int ja = 0; ja < 3; ja ++) cout << dSortedTransforms[ia][ja][iS] << "," << dSortedTransforms[ia][ja][iE] << " ";
-						cout << endl;
-					}*/
-	for (int i = 0; i < isegLength; i ++) {
-		bool flag = true;
-		for (int ii = 0; ii < 2; ii ++)
-			if (flag) for (int jj = 0; jj < 3; jj ++)
-				if (!(dTransforms[ii][jj][i] > dSortedTransforms[ii][jj][iS] && dTransforms[ii][jj][i] < dSortedTransforms[ii][jj][iE])) {
-					flag = false;
-					/*cout << i << " " << ii << " " << jj << endl;
-					for (int ia = 0; ia < 2; ia ++) {
-						for (int ja = 0; ja < 3; ja ++) cout << dTransforms[ia][ja][i] << " ";
-						cout << endl;
-					}*/
-					break;
-				}
-		if (flag) {
-			selectedFeaturesI.push_back(features1[i]);
-			selectedFeaturesO.push_back(features2[i]);
-			selectedFeaturesI.push_back(features1[i + isegLength]);
-			selectedFeaturesO.push_back(features2[i + isegLength]);
-			selectedFeaturesI.push_back(features1[k - i - 1]);
-			selectedFeaturesO.push_back(features2[k - i - 1]);
+	// to limit the range
+	double limit = 3.8;
+	for (; !selectedFeaturesI.size(); limit *= 1.1) {
+		int iS = (int) isegLength / limit, iE = isegLength - iS;
+		outputInformation("range iS = ", iS);
+		outputInformation("range iE = ", iE);
+		for (int i = 0; i < isegLength; i ++) {
+			bool flag = true;
+			for (int ii = 0; ii < 2; ii ++)
+				if (flag) for (int jj = 0; jj < 3; jj ++)
+					if (!(dTransforms[ii][jj][i] > dSortedTransforms[ii][jj][iS] && dTransforms[ii][jj][i] < dSortedTransforms[ii][jj][iE])) {
+						flag = false;
+						/*cout << i << " " << ii << " " << jj << endl;
+						for (int ia = 0; ia < 2; ia ++) {
+							for (int ja = 0; ja < 3; ja ++) cout << dTransforms[ia][ja][i] << " ";
+							cout << endl;
+						}*/
+						break;
+					}
+			if (flag) {
+				selectedFeaturesI.push_back(features1[i]);
+				selectedFeaturesO.push_back(features2[i]);
+				selectedFeaturesI.push_back(features1[i + isegLength]);
+				selectedFeaturesO.push_back(features2[i + isegLength]);
+				selectedFeaturesI.push_back(features1[k - i - 1]);
+				selectedFeaturesO.push_back(features2[k - i - 1]);
+			}
 		}
+		outputInformation("voted got k = ", selectedFeaturesI.size());
 	}
-	outputInformation("voted got k = ", selectedFeaturesI.size());
 	// count result
 	std::vector<uchar> inliers(selectedFeaturesI.size());
 	cv::Mat result = cv::findHomography(	cv::Mat(selectedFeaturesI),		// corresponding
@@ -139,6 +136,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 	cv::warpPerspective(newFrame, mAfterTransform, result, newFrame.size());
 	cv::Mat mBeforTransform;
 	cv::warpPerspective(mLastFrame, mBeforTransform, result, newFrame.size(), cv::WARP_INVERSE_MAP & cv::INTER_LINEAR);
+	delta = mAfterTransform - mLastFrame;
 
 	// use the result
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
