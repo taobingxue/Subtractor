@@ -50,16 +50,21 @@ int main(int argc, char* argv[]) {
     cv::Mat oCurrInputFrame, oCurrSegmMask, oCurrReconstrBGImg, oROI;
 	parser.printParams();
 	// initialization
+	string ss = sFilePath + getpath(sFileName, iNumLength, iNumNow);
+	cout << ss << endl;
+
 	oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow));
 	oCurrSegmMask.create(oCurrInputFrame.size(),CV_8UC1);
     oCurrReconstrBGImg.create(oCurrInputFrame.size(),oCurrInputFrame.type());
 	oROI = cv::Mat(oCurrInputFrame.size(),CV_8UC1,cv::Scalar_<uchar>(255));
 	
-	MovingSubtractor oSubtractor;
+	MovingSubtractor oSubtractor(true);
 	oSubtractor.initialize(oCurrInputFrame, oROI);
 	cout<< oCurrInputFrame.channels() <<endl;
 	for (iNumNow++; ; iNumNow++) {
 		// read new frame
+		// string ss = sFilePath + getpath(sFileName, iNumLength, iNumNow);
+		// cout << ss << endl;
 		oCurrInputFrame = cv::imread(sFilePath + getpath(sFileName, iNumLength, iNumNow));
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
 		// motion compensate

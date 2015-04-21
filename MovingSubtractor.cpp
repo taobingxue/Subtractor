@@ -9,40 +9,44 @@
 
 using namespace std;
 
-const int max_count = 50000;	  	// maximum number of features to detect
-const double qlevel = 0.05;    		// quality level for feature detection
-const double minDist = 2;   		// minimum distance between two feature points
+const int max_count = 50000;		// maximum number of features to detect
+const double qlevel = 0.05;			// quality level for feature detection
+const double minDist = 2;			// minimum distance between two feature points
 
 MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame() {
 }
 
 void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) {
-	if (detailInformation) cout << "initialize started" << endl;
+	outputInformation("initialize started\n");
 	suBSENSE.initialize(oInitImg, oROI);
 	mLastFrame = oInitImg.clone();
-	if (detailInformation) cout << "initialize finished" << endl;
+	outputInformation("initialize finished\n");
 }
 
 void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, double learningRateOverride) {
-	if (detailInformation) cout << "operate started" << endl;
+	outputInformation("operate started\n");
 	cv::Mat newFrame = _newFrame.getMat();
 	vector<uchar> status; 	// status of tracked features
 	vector<float> err;    	// error in tracking
 	vector<cv::Point2f> features1,features2;
+
+	cv::Mat grey0, grey1;
+	cv::cvtColor(mLastFrame, grey0, CV_RGB2GRAY);
+	cv::cvtColor(newFrame, grey1, CV_RGB2GRAY);
 	// detect the features
-	cv::goodFeaturesToTrack(mLastFrame, 		// the image 
+	cv::goodFeaturesToTrack(grey0, 		// the image 
 							features1,   		// the output detected features
 							max_count,  		// the maximum number of features 
 							qlevel,     		// quality level
 							minDist);   		// min distance between two features
-	if (detailInformation) cout << "features got" << endl;
+	outputInformation("features got\n");
 	// 2. track features
-	cv::calcOpticalFlowPyrLK(mLastFrame, newFrame,	// 2 consecutive images
+	cv::calcOpticalFlowPyrLK(grey0, grey1,	// 2 consecutive images
 							features1, 			// input point position in first image
 							features2, 			// output point postion in the second image
 							status,    			// tracking success
 							err);      			// tracking error
-	if (detailInformation) cout << "features traced" << endl;
+	outputInformation("features traced\n");
 	// remove tracking failed features
 	int k=0;
 	for( int i= 0; i < (int) features1.size(); i++ ) 
@@ -57,10 +61,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 	}
 	features1.resize(k);
 	features2.resize(k);
-	if (detailInformation) {
-		cout << "featrues selected" << endl;
-		cout << "k = " << k <<endl;
-	}
+	outputInformation("featrues selected: k = ", k);
 
 	// calculate result with vote based on cv::getAffineTransform()
 	cv::Point2f pInput[3], pOuput[3];
@@ -84,7 +85,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 			}
 		}
 	}
-	if (detailInformation) cout << "matrix got k = " << (int) dTransforms[0][0].size() << endl;
+	outputInformation("matrix got k = ", (int) dTransforms[0][0].size());
 
 	// sort values
 	for (int i = 0; i < 2; i ++)
@@ -93,7 +94,8 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 	// find features
 	vector<cv::Point2f> selectedFeaturesI, selectedFeaturesO;
 	int iS = (int) isegLength / 3.8, iE = isegLength - iS;
-	if (detailInformation) cout << "range: " << iS << " " << iE << endl;
+	outputInformation("range iS = ", iS);
+	outputInformation("range iE = ", iE);
 
 	/*freopen("a.out", "w", stdout);
 
@@ -123,7 +125,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 			selectedFeaturesO.push_back(features2[k - i - 1]);
 		}
 	}
-	if (detailInformation) cout << "voted got k = " << selectedFeaturesI.size() << endl;
+	outputInformation("voted got k = ", selectedFeaturesI.size());
 	// count result
 	std::vector<uchar> inliers(selectedFeaturesI.size());
 	cv::Mat result = cv::findHomography(	cv::Mat(selectedFeaturesI),		// corresponding
@@ -131,16 +133,25 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, do
 											inliers,				// outputted inliers matches
 											CV_RANSAC,				// RANSAC method
 											0.1);					// max distance to reprojection point
-	if (detailInformation) cout << "tansform matrix :\n" << result <<endl;
+	outputInformation("tansform matrix :\n", -1, &result);
 	// use the transform matrix
 	cv::Mat mAfterTransform;
 	cv::warpPerspective(newFrame, mAfterTransform, result, newFrame.size());
+	cv::Mat mBeforTransform;
+	cv::warpPerspective(mLastFrame, mBeforTransform, result, newFrame.size(), cv::WARP_INVERSE_MAP & cv::INTER_LINEAR);
 
 	// use the result
-	suBSENSE(mAfterTransform, fgmask, learningRateOverride);
+	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
 	mLastFrame = newFrame;
 }
 
-void MovingSubtractor::getBackgroundImage(cv::Mat oBackground) {
+void MovingSubtractor::getBackgroundImage(cv::Mat oBackground) const {
 	suBSENSE.getBackgroundImage(oBackground);
+}
+
+inline void MovingSubtractor::outputInformation(const string &sInfo, int num, cv::Mat* matrix) const {
+	if (!detailInformation) return ;
+	cout << sInfo << endl;
+	if (num >= 0) printf("%d\n", num);
+	if (matrix) cout << *matrix << endl;
 }
