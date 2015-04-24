@@ -305,11 +305,15 @@ void BackgroundSubtractorSuBSENSE::operator()(cv::InputArray _image, cv::OutputA
 	if(m_nImgChannels==1) {
 		for(size_t nModelIter=0; nModelIter<m_nTotRelevantPxCount; ++nModelIter) {
 			const size_t nPxIter = m_aPxIdxLUT[nModelIter];
+			const uchar nCurrColor = oInputImg.data[nPxIter];
+			
+			// avoid empty pixel after transform
+			if (nCurrColor == 0) continue;
+			
 			const size_t nDescIter = nPxIter*2;
 			const size_t nFloatIter = nPxIter*4;
 			const int nCurrImgCoord_X = m_aPxInfoLUT[nPxIter].nImgCoord_X;
 			const int nCurrImgCoord_Y = m_aPxInfoLUT[nPxIter].nImgCoord_Y;
-			const uchar nCurrColor = oInputImg.data[nPxIter];
 			size_t nMinDescDist = s_nDescMaxDataRange_1ch;
 			size_t nMinSumDist = s_nColorMaxDataRange_1ch;
 			float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+nFloatIter);
@@ -439,9 +443,13 @@ void BackgroundSubtractorSuBSENSE::operator()(cv::InputArray _image, cv::OutputA
 			const int nCurrImgCoord_X = m_aPxInfoLUT[nPxIter].nImgCoord_X;
 			const int nCurrImgCoord_Y = m_aPxInfoLUT[nPxIter].nImgCoord_Y;
 			const size_t nPxIterRGB = nPxIter*3;
-			const size_t nDescIterRGB = nPxIterRGB*2;
-			const size_t nFloatIter = nPxIter*4;
 			const uchar* const anCurrColor = oInputImg.data+nPxIterRGB;
+			
+			// avoid empty pixel after transform
+			if (anCurrColor[0] == 0 && anCurrColor[1] == 0 && anCurrColor[2] == 0) continue;
+
+			const size_t nDescIterRGB = nPxIterRGB*2;
+			const size_t nFloatIter = nPxIter*4;			
 			size_t nMinTotDescDist=s_nDescMaxDataRange_3ch;
 			size_t nMinTotSumDist=s_nColorMaxDataRange_3ch;
 			float* pfCurrDistThresholdFactor = (float*)(m_oDistThresholdFrame.data+nFloatIter);
@@ -734,4 +742,89 @@ void BackgroundSubtractorSuBSENSE::getBackgroundDescriptorsImage(cv::OutputArray
 		}
 	}
 	oAvgBGDesc.convertTo(backgroundDescImage,CV_16U);
+}
+
+void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat &transmatrix) {
+	m_oLastColorFrame = newFrame.clone();
+	cv::warpPerspective(m_oLastDescFrame, m_oLastDescFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oLastFGMask, m_oLastFGMask, transmatrix, m_oImgSize);
+	for (int i = 0; i < (int) m_voBGColorSamples.size(); i ++)
+		cv::warpPerspective(m_voBGColorSamples[i], m_voBGColorSamples[i], transmatrix, m_oImgSize);
+	for (int i = 0; i < (int) m_voBGDescSamples.size(); i ++)
+		cv::warpPerspective(m_voBGDescSamples[i], m_voBGDescSamples[i], transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oUpdateRateFrame, m_oUpdateRateFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oDistThresholdFrame, m_oDistThresholdFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oVariationModulatorFrame, m_oVariationModulatorFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanLastDistFrame, m_oMeanLastDistFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanMinDistFrame_LT, m_oMeanMinDistFrame_LT, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanMinDistFrame_ST, m_oMeanMinDistFrame_ST, transmatrix, m_oImgSize);
+	//! per-pixel mean downsampled distances between consecutive frames (used to analyze camera movement and control max learning rates globally)
+	cv::warpPerspective(m_oMeanDownSampledLastDistFrame_LT, m_oMeanDownSampledLastDistFrame_LT, transmatrix, m_oDownSampledFrameSize);
+	cv::warpPerspective(m_oMeanDownSampledLastDistFrame_ST, m_oMeanDownSampledLastDistFrame_ST, transmatrix, m_oDownSampledFrameSize);
+	//! pre-allocated matrix used to downsample the input frame when needed
+	cv::warpPerspective(m_oDownSampledFrame_MotionAnalysis, m_oDownSampledFrame_MotionAnalysis, transmatrix, m_oDownSampledFrameSize);
+	
+	cv::warpPerspective(m_oMeanRawSegmResFrame_LT, m_oMeanRawSegmResFrame_LT, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanRawSegmResFrame_ST, m_oMeanRawSegmResFrame_ST, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanFinalSegmResFrame_LT, m_oMeanFinalSegmResFrame_LT, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oMeanFinalSegmResFrame_ST, m_oMeanFinalSegmResFrame_ST, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oUnstableRegionMask, m_oUnstableRegionMask, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oBlinksFrame, m_oBlinksFrame, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oLastRawFGMask, m_oLastRawFGMask, transmatrix, m_oImgSize);
+	//! pre-allocated CV_8UC1 matrices used to speed up morph ops
+	cv::warpPerspective(m_oFGMask_PreFlood, m_oFGMask_PreFlood, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oFGMask_FloodedHoles, m_oFGMask_FloodedHoles, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oLastFGMask_dilated, m_oLastFGMask_dilated, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oLastFGMask_dilated_inverted, m_oLastFGMask_dilated_inverted, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oCurrRawFGBlinkMask, m_oCurrRawFGBlinkMask, transmatrix, m_oImgSize);
+	cv::warpPerspective(m_oLastRawFGBlinkMask, m_oLastRawFGBlinkMask, transmatrix, m_oImgSize);
+	
+	// initialize empty pixel after transform
+	if (m_nImgChannels == 1) {
+		for (size_t nPxIter=0; nPxIter < m_nTotPxCount; nPxIter ++) {
+			if (m_oROI.data[nPxIter] && m_oUpdateRateFrame.at<float>(nPxIter) < m_fCurrLearningRateLowerCap) {
+				const size_t nDescIter = nPxIter*2;
+				LBSP::computeGrayscaleDescriptor(newFrame, newFrame.data[nPxIter], m_aPxInfoLUT[nPxIter].nImgCoord_X, m_aPxInfoLUT[nPxIter].nImgCoord_Y, m_anLBSPThreshold_8bitLUT[newFrame.data[nPxIter]], *((ushort*)(m_oLastDescFrame.data+nDescIter)));
+				m_oUpdateRateFrame.at<float>(nPxIter) = m_fCurrLearningRateLowerCap;
+				m_oDistThresholdFrame.at<float>(nPxIter) = 1.0f;
+				m_oVariationModulatorFrame.at<float>(nPxIter) = 10.0f;
+				for (size_t nCurrModelIdx = 0; nCurrModelIdx < m_nBGSamples; nCurrModelIdx ++) {
+					int nSampleImgCoord_Y, nSampleImgCoord_X;
+					getRandSamplePosition(nSampleImgCoord_X, nSampleImgCoord_Y, m_aPxInfoLUT[nPxIter].nImgCoord_X, m_aPxInfoLUT[nPxIter].nImgCoord_Y, LBSP::PATCH_SIZE/2,m_oImgSize);
+					const size_t nSamplePxIdx = m_oImgSize.width*nSampleImgCoord_Y + nSampleImgCoord_X;
+					if (!m_oLastFGMask.data[nSamplePxIdx]) {
+						const size_t nCurrRealModelIdx = nCurrModelIdx%m_nBGSamples;
+						m_voBGColorSamples[nCurrRealModelIdx].data[nPxIter] = m_oLastColorFrame.data[nSamplePxIdx];
+						*((ushort*)(m_voBGDescSamples[nCurrRealModelIdx].data+nPxIter*2)) = *((ushort*)(m_oLastDescFrame.data+nSamplePxIdx*2));
+					}
+				}
+			}
+		}
+	}
+	else { // m_nImgChannels == 3
+		for (size_t nPxIter = 0; nPxIter < m_nTotPxCount; nPxIter++) {
+			if (m_oROI.data[nPxIter] && m_oUpdateRateFrame.at<float>(nPxIter) < m_fCurrLearningRateLowerCap) {
+				const size_t nPxRGBIter = nPxIter*3;
+				const size_t nDescRGBIter = nPxRGBIter*2;
+				for (size_t c = 0; c < 3; c ++) {
+					LBSP::computeSingleRGBDescriptor(newFrame, newFrame.data[nPxRGBIter+c], m_aPxInfoLUT[nPxIter].nImgCoord_X, m_aPxInfoLUT[nPxIter].nImgCoord_Y, c, m_anLBSPThreshold_8bitLUT[newFrame.data[nPxRGBIter+c]],((ushort*)(m_oLastDescFrame.data+nDescRGBIter))[c]);
+				}
+				m_oUpdateRateFrame.at<float>(nPxIter) = m_fCurrLearningRateLowerCap;
+				m_oDistThresholdFrame.at<float>(nPxIter) = 1.0f;
+				m_oVariationModulatorFrame.at<float>(nPxIter) = 10.0f;
+				for (size_t nCurrModelIdx = 0; nCurrModelIdx < m_nBGSamples; nCurrModelIdx ++) {
+					int nSampleImgCoord_Y, nSampleImgCoord_X;
+					getRandSamplePosition(nSampleImgCoord_X, nSampleImgCoord_Y, m_aPxInfoLUT[nPxIter].nImgCoord_X, m_aPxInfoLUT[nPxIter].nImgCoord_Y, LBSP::PATCH_SIZE/2, m_oImgSize);
+					const size_t nSamplePxIdx = m_oImgSize.width*nSampleImgCoord_Y + nSampleImgCoord_X;
+					if (!m_oLastFGMask.data[nSamplePxIdx]) {
+						const size_t nCurrRealModelIdx = nCurrModelIdx%m_nBGSamples;
+						for(size_t c = 0; c < 3; c ++) {
+							m_voBGColorSamples[nCurrRealModelIdx].data[nPxIter*3+c] = m_oLastColorFrame.data[nSamplePxIdx*3+c];
+							*((ushort*)(m_voBGDescSamples[nCurrRealModelIdx].data+(nPxIter*3+c)*2)) = *((ushort*)(m_oLastDescFrame.data+(nSamplePxIdx*3+c)*2));
+						}
+					}
+				}
+			}
+		}
+	}	
 }

@@ -47,6 +47,8 @@ public:
 	void getBackgroundImage(cv::OutputArray backgroundImage) const;
 	//! returns a copy of the latest reconstructed background descriptors image
 	void getBackgroundDescriptorsImage(cv::OutputArray backgroundDescImage) const;
+	//! update the model with frame after motion
+	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
 
 protected:
 	//! absolute minimal color distance threshold ('R' or 'radius' in the original ViBe paper, used as the default/initial 'R(x)' value here)
