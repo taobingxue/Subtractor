@@ -134,14 +134,16 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	// use the transform matrix
 	cv::Mat mAfterTransform;
 	cv::warpPerspective(mLastFrame, mAfterTransform, result, newFrame.size());
-	cv::Mat mBeforTransform;
-	cv::warpPerspective(newFrame, mBeforTransform, result, newFrame.size(), cv::WARP_INVERSE_MAP & cv::INTER_LINEAR);
+	cv::Mat mBeforTransform, resultInvert;
+	cv::invert(result, resultInvert, cv::DECOMP_LU);
+	cv::warpPerspective(newFrame, mBeforTransform, resultInvert, newFrame.size());
 	cv::Mat grey2;
 	cv::cvtColor(mAfterTransform, grey2, CV_RGB2GRAY);
 	delta = grey2 - grey1;
 
 	// use the result
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
+	suBSENSE.update(newFrame, result);
 	mLastFrame = newFrame.clone();
 }
 
