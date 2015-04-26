@@ -141,8 +141,28 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	cv::cvtColor(mAfterTransform, grey2, CV_RGB2GRAY);
 	delta = grey2 - grey1;
 
+	/*
+			char num[100];
+		sprintf(num, "%d", count);
+		string ss = string(num) + ".jpg";
+		cv::imwrite(sS + "before0" + ss, mLastFrame);
+		cv::imwrite(sS + "after0" + ss, mBeforTransform);
+		cv::imwrite(sS + "compare0" + ss, delta); 
+		cv::imwrite(sS + "before1" + ss, newFrame);
+		cv::imwrite(sS + "after1" + ss, mAfterTransform);
+		cv::Mat pointed = newFrame.clone();
+		cv::Scalar color( 255, 0, 0);
+		for (int i = 0; i < (int) selectedFeaturesO.size(); i ++) 
+			cv::circle(pointed, selectedFeaturesO[i], 3, color);
+		cv::imwrite(sS + "pointed" + ss, pointed);
+		count += 1;
+	*/
+
 	// use the result
+	outputInformation("() operate :\n");
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
+	cv::warpPerspective(fgmask, fgmask, result, newFrame.size());
+	outputInformation("model update :\n");
 	suBSENSE.update(newFrame, result);
 	mLastFrame = newFrame.clone();
 }

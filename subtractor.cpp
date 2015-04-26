@@ -16,7 +16,8 @@ static void help() {
     printf("\nforeground-background segmentation for moving (maybe Pan-Tilt-Zoom) camera.\n"
             "OpenCV's BackgroundSubtractor interface; will analyze frames from the file in the term of JPG pictures\n"
             "Usage: \n"
-            "  ./bgfg_segm --filepath/-f=<path to file> --savepath/-s=<path to save> [--info/-i=<whether output infos, true/false>]\n\n");
+            "  ./bgfg_segm --filepath/-f=<path to file> --savepath/-s=<path to save> [--info/-i=<whether output infos, true/false>]\n\n"
+			"eg. -p=./data/in\%06d.jpg -s=./output/ -i=true");
 }
 
 const char* keys = {
@@ -59,6 +60,7 @@ int main(int argc, char* argv[]) {
 	oSubtractor.initialize(oCurrInputFrame, oROI);
 	char num[100];
 	for (int i = 0; ; i ++ ) {
+		printf("Start %d\n", i);
 		// read new frame
 		inputFile >> oCurrInputFrame;
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
@@ -66,7 +68,7 @@ int main(int argc, char* argv[]) {
 		oSubtractor.work(oCurrInputFrame, oCurrSegmMask, oDeltaImg);
 		oSubtractor.getBackgroundImage(oCurrReconstrBGImg);
 		// save result
-		printf("%d\n", i);
+		printf("Save %d\n", i);
 		sprintf(num, "%d", i);
 		string ss = string(num) + ".jpg";
 		cv::imwrite(sSavePath + "ou" + ss, oCurrSegmMask);
