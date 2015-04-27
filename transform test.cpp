@@ -241,6 +241,69 @@ int main(int argc, char* argv[]) {
 	}
 	cout << selectedFeaturesI.size() << endl;
 	
+	/*
+	// select the dense part
+	vector<cv::Point2f> selectedFeaturesI, selectedFeaturesO;
+	double selectRange = 0.5;
+	for (; (int) selectedFeaturesI.size() < 4; selectRange *= 1.1) {
+		selectedFeaturesI.resize(0);
+		selectedFeaturesO.resize(0);
+		double iS[2][3], iE[2][3];
+		// determine the range to vote
+		// size of segment
+		int segSize = (int) isegLength * selectRange;
+		for (int ia = 0; ia < 2; ia ++)
+			for (int ja = 0; ja < 3; ja ++) {
+				double range = 100;
+				int sum = 0, maxSize = 0;
+				vector<double> *data = &dSortedTransforms[ia][ja];
+				for (; maxSize < segSize; range *= 0.85) {
+					sum = 0; maxSize = 0;
+					// step
+					double step = ((*data)[isegLength-1] - (*data)[0]) / range, now = (*data)[0] + step;
+					for (int i = 0; i < isegLength; i ++)
+						if ((*data)[i] > now) {
+							if (sum > maxSize) {
+								maxSize = sum;
+								iS[ia][ja] = now - step;
+								iE[ia][ja] = now;
+							}
+							sum = 1;
+							while ((*data)[i] > now) now += step;
+						} else sum += 1;
+					// last segment
+					if (sum > maxSize) {
+						maxSize = sum;
+						iS[ia][ja] = now - step;
+						iE[ia][ja] = now;
+					}
+				}
+				outputInformation("voted iS[" + to_string(ia) + "][" + to_string(ja) + "]", iS[ia][ja]);
+				outputInformation("voted iE[" + to_string(ia) + "][" + to_string(ja) + "]", iE[ia][ja]);
+				outputInformation("voted segSize[" + to_string(ia) + "][" + to_string(ja) + "]", maxSize);
+			}
+		// get the vote result
+		for (int i = 0; i < isegLength; i ++) {
+			bool flag = true;
+			for (int ia = 0; ia < 2; ia ++)
+				if (flag) for (int ja = 0; ja < 3; ja ++)
+					if (!(dTransforms[ia][ja][i] > iS[ia][ja] && dTransforms[ia][ja][i] < iE[ia][ja])) {
+						flag = false;
+						break;
+					}
+			if (flag) {
+				selectedFeaturesI.push_back(features1[i]);
+				selectedFeaturesO.push_back(features2[i]);
+				selectedFeaturesI.push_back(features1[i + isegLength]);
+				selectedFeaturesO.push_back(features2[i + isegLength]);
+				selectedFeaturesI.push_back(features1[k - i - 1]);
+				selectedFeaturesO.push_back(features2[k - i - 1]);
+			}
+		}
+		outputInformation("voted got k = ", selectedFeaturesI.size());
+	}
+	*/	
+	
 	// count result
 	std::vector<uchar> inlierss(selectedFeaturesI.size());
 	result = cv::findHomography(	cv::Mat(selectedFeaturesI),		// corresponding

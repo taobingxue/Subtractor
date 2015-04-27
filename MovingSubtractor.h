@@ -7,6 +7,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include "BackgroundSubtractorSuBSENSE.h"
+#include "Timer.h"
 using namespace std;
 
 class MovingSubtractor {
@@ -17,8 +18,9 @@ public:
 	void getBackgroundImage(cv::Mat oBackground) const;
 
 private:
-	inline void outputInformation(const string &sInfo, int num = -1, cv::Mat* matrix = NULL) const;
+	inline void outputInformation(const string &sInfo, double num = -1, cv::Mat* matrix = NULL) const;
 	BackgroundSubtractorSuBSENSE suBSENSE;
 	bool detailInformation;
 	cv::Mat mLastFrame;
+	Timer t;
 };

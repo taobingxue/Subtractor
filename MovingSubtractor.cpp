@@ -6,6 +6,7 @@
 
 #include "BackgroundSubtractorSuBSENSE.h"
 #include "MovingSubtractor.h"
+#include "Timer.h"
 
 using namespace std;
 
@@ -13,18 +14,20 @@ const int max_count = 50000;		// maximum number of features to detect
 const double qlevel = 0.05;			// quality level for feature detection
 const double minDist = 2;			// minimum distance between two feature points
 
-MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame() {
+MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame(), t() {
 }
 
 void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) {
 	outputInformation("initialize started\n");
+	t.reset();
 	suBSENSE.initialize(oInitImg, oROI);
 	mLastFrame = oInitImg.clone();
-	outputInformation("initialize finished\n");
+	outputInformation("initialize finished with time : ", t.getTime());
 }
 
 void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv::Mat &delta, double learningRateOverride) {
 	outputInformation("operate started\n");
+	t.reset();
 	cv::Mat newFrame = _newFrame.getMat();
 	vector<uchar> status; 	// status of tracked features
 	vector<float> err;    	// error in tracking
@@ -39,14 +42,16 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 							max_count,  		// the maximum number of features 
 							qlevel,     		// quality level
 							minDist);   		// min distance between two features
-	outputInformation("features got\n");
+	outputInformation("features got:", t.getTime());
+	t.reset();
 	// 2. track features
 	cv::calcOpticalFlowPyrLK(grey0, grey1,	// 2 consecutive images
 							features1, 			// input point position in first image
 							features2, 			// output point postion in the second image
 							status,    			// tracking success
 							err);      			// tracking error
-	outputInformation("features traced\n");
+	outputInformation("features traced:", t.getTime());
+	
 	// remove tracking failed features
 	int k=0;
 	for( int i= 0; i < (int) features1.size(); i++ ) 
@@ -62,7 +67,8 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	features1.resize(k);
 	features2.resize(k);
 	outputInformation("featrues selected: k = ", k);
-
+	
+	t.reset();
 	// calculate result with vote based on cv::getAffineTransform()
 	cv::Point2f pInput[3], pOuput[3];
 	vector<double> dTransforms[2][3], dSortedTransforms[2][3];
@@ -131,6 +137,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 											CV_RANSAC,				// RANSAC method
 											0.1);					// max distance to reprojection point
 	outputInformation("tansform matrix :\n", -1, &result);
+	outputInformation("with time: ", t.getTime());
 	// use the transform matrix
 	cv::Mat mAfterTransform;
 	cv::warpPerspective(mLastFrame, mAfterTransform, result, newFrame.size());
@@ -159,11 +166,15 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	*/
 
 	// use the result
-	outputInformation("() operate :\n");
+	outputInformation("() operate :");
+	t.reset();
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
 	cv::warpPerspective(fgmask, fgmask, result, newFrame.size());
-	outputInformation("model update :\n");
+	outputInformation("", t.getTime());
+	t.reset();
+	outputInformation("model update :");
 	suBSENSE.update(newFrame, result);
+	outputInformation("", t.getTime());
 	mLastFrame = newFrame.clone();
 }
 
@@ -171,9 +182,9 @@ void MovingSubtractor::getBackgroundImage(cv::Mat oBackground) const {
 	suBSENSE.getBackgroundImage(oBackground);
 }
 
-inline void MovingSubtractor::outputInformation(const string &sInfo, int num, cv::Mat* matrix) const {
+inline void MovingSubtractor::outputInformation(const string &sInfo, double num, cv::Mat* matrix) const {
 	if (!detailInformation) return ;
-	cout << sInfo << endl;
-	if (num >= 0) printf("%d\n", num);
+	cout << sInfo ;
+	if (num >= 0) printf("%.3lf\n", num);
 	if (matrix) cout << *matrix << endl;
 }
