@@ -312,6 +312,50 @@ int main(int argc, char* argv[]) {
 											CV_RANSAC,				// RANSAC method
 											0.1);					// max distance to reprojection point
 	cout << result <<endl;
+	
+	/*
+		// vote
+	vector<cv::Point2f> features10;
+	vector<double> dist;
+	dist.reserve(k+1);
+	features10.reserve(k+1);
+	cout << "a";
+	perspectiveTransform(features1, features10, result);
+	cout << "b";
+	double minDis = 2100000000, maxDis = -1, dis;
+	for (int i=0; i<k; i++) {
+		dis = abs(features10[i].x - features2[i].x) + abs(features10[i].y - features2[i].y);
+		dist.push_back(dis);
+		if (minDis > dis) minDis = dis;
+		if (maxDis < dis) maxDis = dis;
+	}
+	int label[105];
+	for (int i=0; i<101; i++) label[i] = 0;
+	double step = (maxDis - minDis) / 100;
+
+	cout << minDis << " " << maxDis << " " << step << endl;
+	for (int i=0; i<k; i++) label[int((maxDis - dist[i]) / step)] += 1;
+
+	for (int i=0; i<100; i++) cout << label[i] << " ";
+	int maxp = 0;
+	for (int i=1; i<100; i++) if (label[maxp] < label[i]) maxp = i;
+	cout << maxp << " " << label[maxp];
+	int nk = 0;
+	for (int i=0; i<k; i++)
+		if (int((maxDis - dist[i]) / step) == maxp) {
+			features1[nk] = features1[i];
+			features2[nk++] = features2[i];
+		}
+	features1.resize(nk);
+	features2.resize(nk);
+	std::vector<uchar> inlierss(features1.size());
+	result = cv::findHomography(	cv::Mat(features1),		// corresponding
+											cv::Mat(features2),		// points
+											inlierss,				// outputted inliers matches
+											CV_RANSAC,				// RANSAC method
+											0.1);					// max distance to reprojection point
+	*/
+	
 	// use the transform matrix
 	//cv::Mat mAfterTransform;
 	cv::warpPerspective(aaaaaa, mAfterTransform, result, aaaaaa.size());
@@ -326,4 +370,18 @@ int main(int argc, char* argv[]) {
 	for (int i = 0; i < (int)selectedFeaturesI.size(); i ++)
 		cv::circle(cccccc, selectedFeaturesI[i], 3, color);
 	cv::imwrite("Pointed.jpg", cccccc);  
+	/*
+		aaaaaa = cv::imread("in000001.jpg");
+	bbbbbb = cv::imread("in000002.jpg");
+	cv::Mat cccccc;
+	addWeighted( aaaaaa, 0.5, bbbbbb, 0.5, 0.0,cccccc);
+	cv::Scalar color( 255, 0, 0);
+	cv::Scalar colorl( 0, 125, 125);
+	for (int i = 0; i < k; i ++) {
+		cv::circle(cccccc, features1[i], 3, color);
+		cv::circle(cccccc, features2[i], 3, color);
+		cv::line(cccccc, features1[i], features2[i], colorl, 1);
+	}
+	cv::imwrite("Together.jpg", cccccc);  
+	*/
 }
