@@ -47,6 +47,21 @@ static inline void getRandSamplePosition(int& x_sample, int& y_sample, const int
         y_sample = imgsize.height-border-1;
 }
 
+static const int s_nSamplesCloseInitPatternWidth = 5;
+static const int s_nSamplesCloseInitPatternHeight = 5;
+static inline void getCloseRandSamplePosition(int& x_sample, int& y_sample, const int x_orig, const int y_orig, const int border, const cv::Size& imgsize) {
+    x_sample = rand()%s_nSamplesCloseInitPatternWidth + x_orig-s_nSamplesCloseInitPatternWidth/2;
+    y_sample = rand()%s_nSamplesCloseInitPatternHeight + y_orig-s_nSamplesCloseInitPatternHeight/2;
+    if(x_sample<border)
+        x_sample = border;
+    else if(x_sample>=imgsize.width-border)
+        x_sample = imgsize.width-border-1;
+    if(y_sample<border)
+        y_sample = border;
+    else if(y_sample>=imgsize.height-border)
+        y_sample = imgsize.height-border-1;
+}
+
 // simple 8-connected (3x3) neighbors pattern
 static const int s_anNeighborPatternSize_3x3 = 8;
 static const int s_anNeighborPattern_3x3[8][2] = {

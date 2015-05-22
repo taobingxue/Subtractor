@@ -18,9 +18,14 @@ public:
 	void getBackgroundImage(cv::Mat oBackground) const;
 
 private:
-	inline void outputInformation(const string &sInfo, double num = -1, cv::Mat* matrix = NULL) const;
-	BackgroundSubtractorSuBSENSE suBSENSE;
+	// output detail information
 	bool detailInformation;
+	inline void outputInformation(const string &sInfo, double num = -1, cv::Mat* matrix = NULL) const;
+
+	// subsense
+	BackgroundSubtractorSuBSENSE suBSENSE;
+	// last frame
 	cv::Mat mLastFrame;
+	// time counter
 	Timer t;
 };

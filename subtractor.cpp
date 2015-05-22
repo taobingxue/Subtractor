@@ -17,7 +17,7 @@ static void help() {
             "OpenCV's BackgroundSubtractor interface; will analyze frames from the file in the term of JPG pictures\n"
             "Usage: \n"
             "  ./bgfg_segm --filepath/-f=<path to file> --savepath/-s=<path to save> [--info/-i=<whether output infos, true/false>]\n\n"
-			"eg. -p=./data/in\%06d.jpg -s=./output/ -i=true");
+			"eg. -p=./data/in%%06d.jpg -s=./output/ -i=true");
 }
 
 const char* keys = {
@@ -57,14 +57,17 @@ int main(int argc, char* argv[]) {
 	oROI = cv::Mat(oCurrInputFrame.size(),CV_8UC1,cv::Scalar_<uchar>(255));
 	
 	MovingSubtractor oSubtractor(bOutputInfo);
+	cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 4, 4 ), cv::Point(-1,-1));
 	oSubtractor.initialize(oCurrInputFrame, oROI);
 	char num[100];
 	for (int i = 0; ; i ++ ) {
 		printf("Start %d\n", i);
 		// read new frame
 		inputFile >> oCurrInputFrame;
+		printf("image input\n");
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
 		// subtractor work with new frame
+		cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 3, 3 ), cv::Point(-1,-1));
 		oSubtractor.work(oCurrInputFrame, oCurrSegmMask, oDeltaImg);
 		oSubtractor.getBackgroundImage(oCurrReconstrBGImg);
 		// save result
