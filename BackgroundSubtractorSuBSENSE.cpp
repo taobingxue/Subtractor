@@ -2,6 +2,7 @@
 #include "DistanceUtils.h"
 #include "RandUtils.h"
 #include <iostream>
+#include <vector>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iomanip>
@@ -827,4 +828,120 @@ void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat
 			}
 		}
 	}	
+}
+
+int BackgroundSubtractorSuBSENSE::dist(const cv::Mat &a, const cv::Mat &b, int ax, int ay, int bx, int by, int cutoff) const{
+	int ans = 0;
+	for (int dy = 0; dy < patch_w; dy++) {
+		for (int dx = 0; dx < patch_w; dx++) {
+			size_t anPxIter = ay * m_oImgSize.width + ax, bnPxIter = by * m_oImgSize.width + bx;
+			if (m_nImgChannels==1) {
+				int d = a.data[anPxIter] - b.data[bnPxIter];
+				ans += d*d;
+			} else {
+				anPxIter *= 3, bnPxIter *= 3;
+				for (size_t c = 0; c < 3; c++) {
+					int d = a.data[anPxIter+c] - b.data[bnPxIter+c];
+					ans += d*d;
+				}
+			}
+		}
+		if (ans >= cutoff) { return cutoff; }
+	}
+	return ans;
+}
+
+void BackgroundSubtractorSuBSENSE::improve_guess(const cv::Mat &a, const cv::Mat &b, int ax, int ay, int &xbest, int &ybest, int &dbest, int bx, int by) {
+	int d = dist(a, b, ax, ay, bx, by, dbest);
+	if (d < dbest) {
+		dbest = d;
+		xbest = bx;
+		ybest = by;
+	}
+}
+
+void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
+	/* Initialize with random nearest neighbor field (NNF). */
+	ans.clear();
+	ans.resize(m_nTotPxCount);
+	std::vector<int> annd;
+	annd.resize(m_nTotPxCount);
+
+	int aew = m_oImgSize.width - patch_w + 1, aeh = m_oImgSize.height - patch_w + 1;       /* Effective width and height (possible upper left corners of patches). */
+	int bew = m_oImgSize.width - patch_w + 1, beh = m_oImgSize.height - patch_w + 1;
+	for (int ay = 0; ay < aeh; ay++) {
+		for (int ax = 0; ax < aew; ax++) {
+			int bx = rand()%bew;
+			int by = rand()%beh;
+			ans[ay*m_oImgSize.width + ax] = cv::Point2i(bx, by);
+			annd[ay*m_oImgSize.width + ax] = dist(a, b, ax, ay, bx, by);
+		}
+	}
+	
+	for (int iter = 0; iter < pm_iters; iter++) {
+		/* In each iteration, improve the NNF, by looping in scanline or reverse-scanline order. */
+		int ystart = 0, yend = aeh, ychange = 1;
+		int xstart = 0, xend = aew, xchange = 1;
+		if (iter % 2 == 1) {
+			xstart = xend-1; xend = -1; xchange = -1;
+			ystart = yend-1; yend = -1; ychange = -1;
+		}
+		for (int ay = ystart; ay != yend; ay += ychange)
+			for (int ax = xstart; ax != xend; ax += xchange) { 
+				/* Current (best) guess. */
+				size_t nPxIter = ay*m_oImgSize.width + ax;
+				cv::Point2i v = ans[nPxIter];
+				int xbest = v.x, ybest = v.y;
+				int dbest = annd[nPxIter];
+
+				/* Propagation: Improve current guess by trying instead correspondences from left and above (below and right on odd iterations). */
+				if ((unsigned) (ax - xchange) < (unsigned) aew) {
+					cv::Point2i vp = ans[nPxIter-xchange];
+					int xp = vp.x + xchange, yp = vp.y;
+					if ((unsigned) xp < (unsigned) bew)
+						improve_guess(a, b, ax, ay, xbest, ybest, dbest, xp, yp);
+				}
+				if ((unsigned) (ay - ychange) < (unsigned) aeh) {
+					cv::Point2i vp = ans[(ay-ychange) * m_oImgSize.width + ax];
+					int xp = vp.x, yp = vp.y + ychange;
+					if ((unsigned) yp < (unsigned) beh)
+						improve_guess(a, b, ax, ay, xbest, ybest, dbest, xp, yp);
+				}
+
+				/* Random search: Improve current guess by searching in boxes of exponentially decreasing size around the current best guess. */
+				int rs_start = rs_max;
+				if (rs_start > MAX(m_oImgSize.width, m_oImgSize.height)) rs_start = MAX(m_oImgSize.width, m_oImgSize.height);
+				for (int mag = rs_start; mag >= 1; mag /= 2) {
+					/* Sampling window */
+					int xmin = MAX(xbest-mag, 0), xmax = MIN(xbest+mag+1,bew);
+					int ymin = MAX(ybest-mag, 0), ymax = MIN(ybest+mag+1,beh);
+					int xp = xmin+rand()%(xmax-xmin);
+					int yp = ymin+rand()%(ymax-ymin);
+					improve_guess(a, b, ax, ay, xbest, ybest, dbest, xp, yp);
+				}
+
+				ans[nPxIter] = cv::Point2i(xbest, ybest);
+				annd[nPxIter] = dbest;
+			}
+    }
+}
+
+void BackgroundSubtractorSuBSENSE::cover(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
+	int aew = m_oImgSize.width - patch_w + 1, aeh = m_oImgSize.height - patch_w + 1;
+	int bew = m_oImgSize.width - patch_w + 1, beh = m_oImgSize.height - patch_w + 1;
+	for (int ay = 0; ay < aeh; ay+=patch_w )
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int bx = ans[ay * m_oImgSize.width + ax].x, by = ans[ay * m_oImgSize.width + ax].y;
+			for (int ii = 0; ii < patch_w; ii ++)
+				for (int jj = 0; jj < patch_w; jj ++) {
+					size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj, bnPxIter = (by + ii) * m_oImgSize.width + bx + jj;
+					if (m_nImgChannels==1) {
+						a.data[anPxIter] = b.data[bnPxIter];
+					} else {
+						anPxIter *= 3, bnPxIter *= 3;
+						for (size_t c = 0; c < 3; c++)
+							a.data[anPxIter+c] = b.data[bnPxIter+c];
+					}
+				}
+		}
 }

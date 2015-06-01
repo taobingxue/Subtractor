@@ -15,6 +15,16 @@
 //! defines the default value for BackgroundSubtractorSuBSENSE::m_nSamplesForMovingAvgs
 #define BGSSUBSENSE_DEFAULT_N_SAMPLES_FOR_MV_AVGS (100)
 
+#ifndef MAX
+#define MAX(a, b) ((a)>(b)?(a):(b))
+#define MIN(a, b) ((a)<(b)?(a):(b))
+#endif
+
+// const for patch match
+const int patch_w  = 6;
+const int pm_iters = 7;
+const int rs_max   = INT_MAX;
+
 /*!
 	Self-Balanced Sensitivity segmenTER (SuBSENSE) change detection algorithm.
 
@@ -49,8 +59,14 @@ public:
 	void getBackgroundDescriptorsImage(cv::OutputArray backgroundDescImage) const;
 	//! update the model with frame after motion
 	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
+	// patch match part
+	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
+	void cover(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
 
 protected:
+	// patch match count
+	int dist(const cv::Mat &a, const cv::Mat &b, int ax, int ay, int bx, int by, int cutoff=INT_MAX) const;
+	void improve_guess(const cv::Mat &a, const cv::Mat &b, int ax, int ay, int &xbest, int &ybest, int &dbest, int bx, int by);
 	//! absolute minimal color distance threshold ('R' or 'radius' in the original ViBe paper, used as the default/initial 'R(x)' value here)
 	const size_t m_nMinColorDistThreshold;
 	//! absolute descriptor distance threshold offset
