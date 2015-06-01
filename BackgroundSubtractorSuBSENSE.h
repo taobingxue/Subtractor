@@ -61,7 +61,7 @@ public:
 	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
 	// patch match part
 	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
-	void cover(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
+	void cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
 
 protected:
 	// patch match count

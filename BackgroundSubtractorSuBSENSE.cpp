@@ -926,7 +926,7 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
     }
 }
 
-void BackgroundSubtractorSuBSENSE::cover(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
+void BackgroundSubtractorSuBSENSE::cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
 	int aew = m_oImgSize.width - patch_w + 1, aeh = m_oImgSize.height - patch_w + 1;
 	int bew = m_oImgSize.width - patch_w + 1, beh = m_oImgSize.height - patch_w + 1;
 	for (int ay = 0; ay < aeh; ay+=patch_w )
