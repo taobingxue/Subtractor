@@ -21,8 +21,8 @@
 #endif
 
 // const for patch match
-const int patch_w  = 6;
-const int pm_iters = 7;
+const int patch_w  = 7;
+const int pm_iters = 5;
 const int rs_max   = INT_MAX;
 
 /*!
@@ -60,7 +60,7 @@ public:
 	//! update the model with frame after motion
 	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
 	// patch match part
-	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
+	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix);
 	void cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
 
 protected:

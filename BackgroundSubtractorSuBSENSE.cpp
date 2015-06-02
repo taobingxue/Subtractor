@@ -860,7 +860,7 @@ void BackgroundSubtractorSuBSENSE::improve_guess(const cv::Mat &a, const cv::Mat
 	}
 }
 
-void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
+void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix) {
 	/* Initialize with random nearest neighbor field (NNF). */
 	ans.clear();
 	ans.resize(m_nTotPxCount);
@@ -869,12 +869,23 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 
 	int aew = m_oImgSize.width - patch_w + 1, aeh = m_oImgSize.height - patch_w + 1;       /* Effective width and height (possible upper left corners of patches). */
 	int bew = m_oImgSize.width - patch_w + 1, beh = m_oImgSize.height - patch_w + 1;
+	std::vector<cv::Point2f> p1, p2;
+	for (int ay = 0; ay < aeh; ay++)
+		for (int ax = 0; ax < aew; ax++) p1.push_back(cv::Point2f(ax, ay));
+	p2.reserve(p1.size());
+	cv::perspectiveTransform(p1, p2, matrix);
+
+	int p = 0;
 	for (int ay = 0; ay < aeh; ay++) {
 		for (int ax = 0; ax < aew; ax++) {
-			int bx = rand()%bew;
-			int by = rand()%beh;
-			ans[ay*m_oImgSize.width + ax] = cv::Point2i(bx, by);
-			annd[ay*m_oImgSize.width + ax] = dist(a, b, ax, ay, bx, by);
+			int idx = ay*m_oImgSize.width + ax;
+			int bx = int(p2[p].x);
+			int by = int(p2[p++].y);
+			if (!(0<=bx && bx<m_oImgSize.width && 0<=by && by<m_oImgSize.height)) {
+				bx = rand()%bew; by = rand()%beh;
+			}
+			ans[idx] = cv::Point2i(bx, by);
+			annd[idx] = dist(a, b, ax, ay, bx, by);
 		}
 	}
 	
@@ -915,8 +926,8 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 					/* Sampling window */
 					int xmin = MAX(xbest-mag, 0), xmax = MIN(xbest+mag+1,bew);
 					int ymin = MAX(ybest-mag, 0), ymax = MIN(ybest+mag+1,beh);
-					int xp = xmin+rand()%(xmax-xmin);
-					int yp = ymin+rand()%(ymax-ymin);
+					int xp = xmin+ ((xmax-xmin) == 0? 0 : rand()%(xmax-xmin));
+					int yp = ymin+ ((ymax-ymin) == 0? 0 : rand()%(ymax-ymin));
 					improve_guess(a, b, ax, ay, xbest, ybest, dbest, xp, yp);
 				}
 

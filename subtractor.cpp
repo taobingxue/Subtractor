@@ -40,7 +40,11 @@ int main(int argc, char* argv[]) {
 	const bool bOutputInfo = parser.get<bool>("info");
 	if (bOutputInfo) cout << "^.^" << endl;
 	cout << bOutputInfo << endl;
-    cv::Mat oCurrInputFrame, oCurrSegmMask, oCurrReconstrBGImg, oDeltaImg, oROI;
+
+//	const string sFilePath = "D:\\课件\\毕设\\moseg\\people2\\in%06d.jpg";
+//	const string sSavePath = "D:\\课件\\毕设\\moseg\\people2\\output\\";
+//	const bool bOutputInfo = true;
+    cv::Mat oCurrInputFrame, oCurrSegmMask, oLastSegmMask, oCurrReconstrBGImg, oDeltaImg, oROI;
 	parser.printParams();
 
 	cv::VideoCapture inputFile(sFilePath);
@@ -67,7 +71,7 @@ int main(int argc, char* argv[]) {
 		printf("image input\n");
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
 		// subtractor work with new frame
-		cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 3, 3 ), cv::Point(-1,-1));
+		cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 4, 4 ), cv::Point(-1,-1));
 		oSubtractor.work(oCurrInputFrame, oCurrSegmMask, oDeltaImg);
 		oSubtractor.getBackgroundImage(oCurrReconstrBGImg);
 		// save result

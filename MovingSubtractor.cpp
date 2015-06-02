@@ -3,6 +3,7 @@
 #include <opencv2/video/background_segm.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <algorithm>
+#include <time.h>
 
 #include "BackgroundSubtractorSuBSENSE.h"
 #include "MovingSubtractor.h"
@@ -14,7 +15,7 @@ const int max_count = 50000;		// maximum number of features to detect
 const double qlevel = 0.05;			// quality level for feature detection
 const double minDist = 2;			// minimum distance between two feature points
 
-MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame(), t() {
+MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame(), t(), frameIdx(0) {
 }
 
 void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) {
@@ -26,6 +27,7 @@ void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) 
 }
 
 void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv::Mat &delta, double learningRateOverride) {
+	frameIdx ++;
 	outputInformation("operate started\n");
 	t.reset();
 	cv::Mat newFrame = _newFrame.getMat();
@@ -171,11 +173,24 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
 	cv::warpPerspective(fgmask, fgmask, result, newFrame.size());
 	outputInformation("", t.getTime());
+	if (frameIdx > STARTMATCH) {
+		t.reset();
+		outputInformation("patch match :");
+		vector<cv::Point2i> ans;
+		suBSENSE.patch_match(newFrame, mLastFrame, ans, resultInvert);
+		outputInformation("", t.getTime());
+
+		t.reset();
+		outputInformation("recover fgmask :");
+		recover(fgmask, mLastMask, ans, COVERRATE);
+		outputInformation("", t.getTime());
+	}
 	t.reset();
 	outputInformation("model update :");
 	suBSENSE.update(newFrame, result);
 	outputInformation("", t.getTime());
 	mLastFrame = newFrame.clone();
+	mLastMask = fgmask.getMat().clone();
 }
 
 void MovingSubtractor::getBackgroundImage(cv::Mat oBackground) const {
@@ -187,4 +202,47 @@ inline void MovingSubtractor::outputInformation(const string &sInfo, double num,
 	cout << sInfo ;
 	if (num >= 0) printf("%.3lf\n", num);
 	if (matrix) cout << *matrix << endl;
+}
+
+void MovingSubtractor::patchmatch(const cv::Mat image, std::vector<cv::Point2i> &ans) {
+	t.reset();
+	outputInformation("patch match :");
+	cv::Mat I = (cv::Mat_<double>(3,3)<<1,0,0,0,1,0,0,0,1);
+	suBSENSE.patch_match(image, mLastFrame, ans, I);
+	outputInformation("", t.getTime());
+}
+
+void MovingSubtractor::recover(cv::OutputArray &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, double coverRate) {
+	cv::Mat image = a.getMat();
+	int aew = image.cols - patch_w + 1, aeh = image.rows - patch_w + 1, goa = int (patch_w * patch_w * coverRate);
+	int ww = (aew - 1) / patch_w + 1;
+	vector<bool> Wa, Bb;
+	for (int ay = 0; ay < aeh; ay+=patch_w ) {
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int sWa = goa, sBb = goa;
+			int bx = ans[ay * image.cols + ax].x, by = ans[ay * image.cols + ax].y;
+			for (int ii = 0; ii < patch_w; ii ++)
+				for (int jj = 0; jj < patch_w; jj ++) {
+					if (b.data[(by + ii) * image.cols + bx + jj] == 0) sBb --;
+					if (image.data[(ay + ii) * image.cols + ax + jj] == 255) sWa --;
+				}
+			Wa.push_back(sWa<=0? true:false);
+			Bb.push_back(sBb<=0? true:false);
+		}
+	}
+
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int idx = ay/patch_w*ww + ax/patch_w;
+			bool flag = Wa[idx];
+			if (ay > 0) flag = flag && Wa[idx -ww];
+			if (ay < aeh-patch_w) flag = flag && Wa[idx + ww ];
+			if (ax > 0) flag = flag && Wa[idx - 1];
+			if (ax < aew-patch_w) flag = flag && Wa[idx + 1];
+			if ((!flag) && Bb[idx]) 
+				for (int ii = 0; ii < patch_w; ii ++)
+					for (int jj = 0; jj < patch_w; jj ++)
+						image.data[(ay + ii) * image.cols + ax + jj] = 0;
+		}
+	image.convertTo(a, CV_8U);
 }
