@@ -186,6 +186,10 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 		outputInformation("", t.getTime());
 	}
 	t.reset();
+	outputInformation("max flow :");
+	suBSENSE.randomField(mLastMask, fgmask);
+	outputInformation("", t.getTime());
+	t.reset();
 	outputInformation("model update :");
 	suBSENSE.update(newFrame, result);
 	outputInformation("", t.getTime());

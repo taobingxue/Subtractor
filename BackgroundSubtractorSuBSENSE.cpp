@@ -1,6 +1,7 @@
 #include "BackgroundSubtractorSuBSENSE.h"
 #include "DistanceUtils.h"
 #include "RandUtils.h"
+#include "graph.h"
 #include <iostream>
 #include <vector>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -835,7 +836,7 @@ int BackgroundSubtractorSuBSENSE::dist(const cv::Mat &a, const cv::Mat &b, int a
 	for (int dy = 0; dy < patch_w; dy++) {
 		for (int dx = 0; dx < patch_w; dx++) {
 			size_t anPxIter = ay * m_oImgSize.width + ax, bnPxIter = by * m_oImgSize.width + bx;
-			if (m_nImgChannels==1) {
+			if (a.channels() == 1) {
 				int d = a.data[anPxIter] - b.data[bnPxIter];
 				ans += d*d;
 			} else {
@@ -955,4 +956,145 @@ void BackgroundSubtractorSuBSENSE::cover(cv::Mat &a, const cv::Mat &b, std::vect
 					}
 				}
 		}
+}
+
+void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image , cv::OutputArray & fgMask) {
+	cv::Mat a = fgMask.getMat();
+    int aew = a.cols - patch_w + 1, aeh = a.rows - patch_w + 1;
+	int ww = (aew - 1) / patch_w + 1, hh = (aeh - 1) / patch_w + 1;
+	int size = ww * hh;
+	Graph *graph = new Graph(size);
+	
+	std::vector<int> foreNum;
+	foreNum.reserve(size);
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int ss = 0;
+			for (int ii = 0; ii < patch_w; ii ++)
+				for (int jj = 0; jj < patch_w; jj ++)
+					if (a.data[(ay + ii) * image.cols + ax + jj] == 0) ss ++;
+			foreNum.push_back(ss);
+
+			float ps = (ss + 0.0) / patch_area;
+
+			float d = MIN(1.0f, ps * 2);
+			d = MAX(1e-20f, d);
+			float d1 = -log(d);
+			d = MAX(1e-20f, 1 - d);
+			float d2 = -log(d);
+
+			if (d1 > d2) graph->add_edge(graph->getS(), foreNum.size()-1, d1 - d2, 0);
+			else graph->add_edge(foreNum.size()-1, graph->getT(), d2 - d1, 0);
+		}
+
+	double avgDistance = 0;
+	std::vector<double> edgeLen;
+	double len;
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			if (ay>0) {
+				len = dist(image, image, ax, ay, ax, ay - patch_w);
+				edgeLen.push_back(len);
+				avgDistance += len;
+			}
+			if (ax>0) {
+				len = dist(image, image, ax, ay, ax - patch_w, ay);
+				edgeLen.push_back(len);
+				avgDistance += len;
+			}
+			if (ax>0 && ay>0) {
+				len = dist(image, image, ax, ay, ax - patch_w, ay - patch_w);
+				edgeLen.push_back(len);
+				avgDistance += len;
+			}
+			if (ay>0 && ax + patch_w < aew) {
+				len = dist(image, image, ax, ay, ax + patch_w, ay - patch_w);
+				edgeLen.push_back(len);
+				avgDistance += len;
+			}
+		}
+    avgDistance /= edgeLen.size();
+
+	float lmd1 = 0.3;
+    float lmd2 = 0.3;
+	float cap;
+	int countIdx = 0;
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int idx = ay/patch_w * ww + ax/patch_w;
+			if (ay>0) {
+				cap = lmd1 + lmd2 * exp(-edgeLen[countIdx++] / 2 / avgDistance);
+				graph->add_edge(idx, idx-ww, cap, cap);
+			}
+			if (ax>0) {
+				cap = lmd1 + lmd2 * exp(-edgeLen[countIdx++] / 2 / avgDistance);
+				graph->add_edge(idx, idx-1, cap, cap);
+			}
+			if (ax>0 && ay>0) {
+				cap = lmd1 + lmd2 * exp(-edgeLen[countIdx++] / 2 / avgDistance);
+				graph->add_edge(idx, idx-ww-1, cap, cap);
+			}
+			if (ay>0 && ax + patch_w < aew) {
+				cap = lmd1 + lmd2 * exp(-edgeLen[countIdx++] / 2 / avgDistance);
+				graph->add_edge(idx, idx-ww+1, cap, cap);
+			}
+		}
+
+    graph->dinic(graph->getS());
+	graph->extended_path();
+	std::vector<int> lebal;
+	lebal.resize(size);
+
+	cv::Mat aaa = a.clone();
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int idx = ay/patch_w * ww + ax/patch_w;
+			bool f1 = false, f2 = false;
+			if (ax > 0) {
+				if (graph->check_type(idx-1)) f1 = true;
+				else f2 = true;
+			}
+			if (ay > 0) {
+				if (graph->check_type(idx-ww)) f1 = true;
+				else f2 = true;
+			}
+			if (ax + patch_w < aew) {
+				if (graph->check_type(idx+1)) f1 = true;
+				else f2 = true;
+			}
+			if (ay + patch_w < aeh) {
+				if (graph->check_type(idx+ww)) f1 = true;
+				else f2 = true;
+			}
+			if (f1 && f2) {
+				for (int ii = 0; ii < patch_w; ii ++)
+					for (int jj = 0; jj < patch_w; jj ++) {
+						size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
+
+					aaa.data[anPxIter] = 0;
+				}
+				lebal[idx] = 1;
+				continue;
+			}
+		}
+
+	for (int ay = 0; ay < aeh; ay+=patch_w)
+		for (int ax = 0; ax < aew; ax+=patch_w) {
+			int idx = ay/patch_w * ww + ax/patch_w;
+			bool flag = lebal[idx];
+			if (ax > 0 && lebal[idx-1]) flag = true;
+			if (ay > 0 && lebal[idx-ww]) flag = true;
+			if (ax + patch_w < aew && lebal[idx+1]) flag = true;
+			if (ay + patch_w < aeh && lebal[idx+ww]) flag = true;
+			if (flag) continue;
+			int goa = graph->check_type(idx)? 255:0;
+			for (int ii = 0; ii < patch_w; ii ++)
+				for (int jj = 0; jj < patch_w; jj ++) {
+					size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
+					a.data[anPxIter] = goa;
+					aaa.data[anPxIter] = 255;
+				}
+		}
+	cv::imwrite("C.jpg", aaa);
+	a.convertTo(fgMask, CV_8U);
 }

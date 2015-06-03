@@ -22,6 +22,7 @@
 
 // const for patch match
 const int patch_w  = 7;
+const int patch_area = patch_w * patch_w;
 const int pm_iters = 5;
 const int rs_max   = INT_MAX;
 
@@ -62,6 +63,8 @@ public:
 	// patch match part
 	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix);
 	void cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
+	// Probabilistic blocks Markov Random Fields
+	void randomField(cv::Mat & image , cv::OutputArray & fgMask);
 
 protected:
 	// patch match count
