@@ -59,12 +59,14 @@ public:
 	//! returns a copy of the latest reconstructed background descriptors image
 	void getBackgroundDescriptorsImage(cv::OutputArray backgroundDescImage) const;
 	//! update the model with frame after motion
-	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
+	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix, const cv::Mat resultFrame);
 	// patch match part
 	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix);
 	void cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
 	// Probabilistic blocks Markov Random Fields
 	void randomField(cv::Mat & image , cv::OutputArray & fgMask);
+	// final complete
+	void complete(cv::OutputArray &fgMask);
 
 protected:
 	// patch match count

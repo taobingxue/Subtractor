@@ -11,7 +11,7 @@
 using namespace std;
 
 // patch match from this frame
-const int STARTMATCH = 10;
+const int STARTMATCH = 9;
 // whether is all black
 const double COVERRATE = 0.95;
 

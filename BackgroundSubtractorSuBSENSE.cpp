@@ -635,19 +635,7 @@ void BackgroundSubtractorSuBSENSE::operator()(cv::InputArray _image, cv::OutputA
 	cv::bitwise_or(m_oCurrRawFGBlinkMask,m_oLastRawFGBlinkMask,m_oBlinksFrame);
 	m_oCurrRawFGBlinkMask.copyTo(m_oLastRawFGBlinkMask);
 	oCurrFGMask.copyTo(m_oLastRawFGMask);
-	cv::morphologyEx(oCurrFGMask,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
-	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
-	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
-	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
-	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_FloodedHoles,oCurrFGMask);
-	cv::bitwise_or(oCurrFGMask,m_oFGMask_PreFlood,oCurrFGMask);
-	cv::medianBlur(oCurrFGMask,m_oLastFGMask,m_nMedianBlurKernelSize);
-	cv::dilate(m_oLastFGMask,m_oLastFGMask_dilated,cv::Mat(),cv::Point(-1,-1),3);
-	cv::bitwise_and(m_oBlinksFrame,m_oLastFGMask_dilated_inverted,m_oBlinksFrame);
-	cv::bitwise_not(m_oLastFGMask_dilated,m_oLastFGMask_dilated_inverted);
-	cv::bitwise_and(m_oBlinksFrame,m_oLastFGMask_dilated_inverted,m_oBlinksFrame);
-	m_oLastFGMask.copyTo(oCurrFGMask);
+	// complete
 	cv::addWeighted(m_oMeanFinalSegmResFrame_LT,(1.0f-fRollAvgFactor_LT),m_oLastFGMask,(1.0/UCHAR_MAX)*fRollAvgFactor_LT,0,m_oMeanFinalSegmResFrame_LT,CV_32F);
 	cv::addWeighted(m_oMeanFinalSegmResFrame_ST,(1.0f-fRollAvgFactor_ST),m_oLastFGMask,(1.0/UCHAR_MAX)*fRollAvgFactor_ST,0,m_oMeanFinalSegmResFrame_ST,CV_32F);
 	const float fCurrNonZeroDescRatio = (float)nNonZeroDescCount/m_nTotRelevantPxCount;
@@ -746,7 +734,7 @@ void BackgroundSubtractorSuBSENSE::getBackgroundDescriptorsImage(cv::OutputArray
 	oAvgBGDesc.convertTo(backgroundDescImage,CV_16U);
 }
 
-void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat &transmatrix) {
+void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat &transmatrix, cv::Mat resultFrame) {
 	m_oLastColorFrame = newFrame.clone();
 	cv::warpPerspective(m_oLastDescFrame, m_oLastDescFrame, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oLastFGMask, m_oLastFGMask, transmatrix, m_oImgSize);
@@ -772,7 +760,8 @@ void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat
 	cv::warpPerspective(m_oMeanFinalSegmResFrame_ST, m_oMeanFinalSegmResFrame_ST, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oUnstableRegionMask, m_oUnstableRegionMask, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oBlinksFrame, m_oBlinksFrame, transmatrix, m_oImgSize);
-	cv::warpPerspective(m_oLastRawFGMask, m_oLastRawFGMask, transmatrix, m_oImgSize);
+	//cv::warpPerspective(m_oLastRawFGMask, m_oLastRawFGMask, transmatrix, m_oImgSize);
+	m_oLastRawFGMask = resultFrame.clone();
 	//! pre-allocated CV_8UC1 matrices used to speed up morph ops
 	cv::warpPerspective(m_oFGMask_PreFlood, m_oFGMask_PreFlood, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oFGMask_FloodedHoles, m_oFGMask_FloodedHoles, transmatrix, m_oImgSize);
@@ -829,6 +818,24 @@ void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat
 			}
 		}
 	}	
+}
+
+void BackgroundSubtractorSuBSENSE::complete(cv::OutputArray &fgMask) {
+	cv::Mat a = fgMask.getMat();
+	cv::morphologyEx(a,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
+	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
+	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
+	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
+	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_or(a,m_oFGMask_FloodedHoles,a);
+	cv::bitwise_or(a,m_oFGMask_PreFlood,a);
+	cv::medianBlur(a,m_oLastFGMask,m_nMedianBlurKernelSize);
+	cv::dilate(m_oLastFGMask,m_oLastFGMask_dilated,cv::Mat(),cv::Point(-1,-1),3);
+	cv::bitwise_and(m_oBlinksFrame,m_oLastFGMask_dilated_inverted,m_oBlinksFrame);
+	cv::bitwise_not(m_oLastFGMask_dilated,m_oLastFGMask_dilated_inverted);
+	cv::bitwise_and(m_oBlinksFrame,m_oLastFGMask_dilated_inverted,m_oBlinksFrame);
+	m_oLastFGMask.copyTo(a);
+	a.convertTo(fgMask, CV_8U);
 }
 
 int BackgroundSubtractorSuBSENSE::dist(const cv::Mat &a, const cv::Mat &b, int ax, int ay, int bx, int by, int cutoff) const{

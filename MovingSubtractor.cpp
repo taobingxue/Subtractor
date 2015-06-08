@@ -189,9 +189,10 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	outputInformation("max flow :");
 	suBSENSE.randomField(newFrame, fgmask);
 	outputInformation("", t.getTime());
+	suBSENSE.complete(fgmask);
 	t.reset();
 	outputInformation("model update :");
-	suBSENSE.update(newFrame, result);
+	suBSENSE.update(newFrame, result, fgmask.getMat());
 	outputInformation("", t.getTime());
 	mLastFrame = newFrame.clone();
 	mLastMask = fgmask.getMat().clone();
@@ -238,12 +239,12 @@ void MovingSubtractor::recover(cv::OutputArray &a, const cv::Mat &b, std::vector
 	for (int ay = 0; ay < aeh; ay+=patch_w)
 		for (int ax = 0; ax < aew; ax+=patch_w) {
 			int idx = ay/patch_w*ww + ax/patch_w;
-			bool flag = Wa[idx];
-			if (ay > 0) flag = flag && Wa[idx -ww];
-			if (ay < aeh-patch_w) flag = flag && Wa[idx + ww ];
-			if (ax > 0) flag = flag && Wa[idx - 1];
-			if (ax < aew-patch_w) flag = flag && Wa[idx + 1];
-			if ((!flag) && Bb[idx]) 
+			int flag = int(Wa[idx]) * 2;
+			if (ay > 0) flag += Wa[idx -ww];
+			if (ay < aeh-patch_w) flag += Wa[idx + ww ];
+			if (ax > 0) flag += Wa[idx - 1];
+			if (ax < aew-patch_w) flag += Wa[idx + 1];
+			if ((flag < 4) && Bb[idx]) 
 				for (int ii = 0; ii < patch_w; ii ++)
 					for (int jj = 0; jj < patch_w; jj ++)
 						image.data[(ay + ii) * image.cols + ax + jj] = 0;

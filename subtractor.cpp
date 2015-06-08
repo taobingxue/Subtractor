@@ -39,10 +39,10 @@ int main(int argc, char* argv[]) {
 	const string sSavePath = parser.get<string>("savepath");
 	const bool bOutputInfo = parser.get<bool>("info");
 	if (bOutputInfo) cout << "^.^" << endl;
-	cout << bOutputInfo << endl;
+	cout << bOutputInfo << endl; 
 
 //	const string sFilePath = "D:\\课件\\毕设\\moseg\\people2\\in%06d.jpg";
-//	const string sSavePath = "D:\\课件\\毕设\\moseg\\people2\\output\\";
+//	const string sSavePath = "D:\\课件\\毕设\\moseg\\people2\\pr\\";
 //	const bool bOutputInfo = true;
     cv::Mat oCurrInputFrame, oCurrSegmMask, oLastSegmMask, oCurrReconstrBGImg, oDeltaImg, oROI;
 	parser.printParams();
