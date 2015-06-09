@@ -41,9 +41,9 @@ int main(int argc, char* argv[]) {
 	if (bOutputInfo) cout << "^.^" << endl;
 	cout << bOutputInfo << endl; 
 
-//	const string sFilePath = "D:\\课件\\毕设\\moseg\\people2\\in%06d.jpg";
-//	const string sSavePath = "D:\\课件\\毕设\\moseg\\people2\\pr\\";
-//	const bool bOutputInfo = true;
+	//const string sFilePath = "D:\\课件\\毕设\\moseg\\cars1\\in%06d.jpg";
+	//const string sSavePath = "D:\\课件\\毕设\\moseg\\cars1\\test0\\";
+	//const bool bOutputInfo = true;
     cv::Mat oCurrInputFrame, oCurrSegmMask, oLastSegmMask, oCurrReconstrBGImg, oDeltaImg, oROI;
 	parser.printParams();
 
@@ -60,19 +60,21 @@ int main(int argc, char* argv[]) {
 	oDeltaImg = oCurrReconstrBGImg.clone();
 	oROI = cv::Mat(oCurrInputFrame.size(),CV_8UC1,cv::Scalar_<uchar>(255));
 	
-	MovingSubtractor oSubtractor(bOutputInfo);
+	MovingSubtractor oSubtractor(bOutputInfo, sSavePath);
 	cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 4, 4 ), cv::Point(-1,-1));
 	oSubtractor.initialize(oCurrInputFrame, oROI);
 	char num[100];
-	for (int i = 0; ; i ++ ) {
+	Timer timer;
+	for (int i = 2; ; i ++ ) {
 		printf("Start %d\n", i);
+		timer.reset();
 		// read new frame
 		inputFile >> oCurrInputFrame;
 		printf("image input\n");
 		if (oCurrInputFrame.empty() || (!oCurrInputFrame.data)) break;
 		// subtractor work with new frame
 		cv::blur( oCurrInputFrame, oCurrInputFrame, cv::Size( 4, 4 ), cv::Point(-1,-1));
-		oSubtractor.work(oCurrInputFrame, oCurrSegmMask, oDeltaImg);
+		oSubtractor.work(oCurrInputFrame, oCurrSegmMask);
 		oSubtractor.getBackgroundImage(oCurrReconstrBGImg);
 		// save result
 		printf("Save %d\n", i);
@@ -80,7 +82,8 @@ int main(int argc, char* argv[]) {
 		string ss = string(num) + ".jpg";
 		cv::imwrite(sSavePath + "ou" + ss, oCurrSegmMask);
 		cv::imwrite(sSavePath + "bg" + ss, oCurrReconstrBGImg);
-		cv::imwrite(sSavePath + "compare" + ss, oDeltaImg);
+//		cv::imwrite(sSavePath + "compare" + ss, oDeltaImg);
+		printf("\nframe%d use %.3lfs in total.\n\n", i, timer.getTime());
 	}
 	return 0;
 }

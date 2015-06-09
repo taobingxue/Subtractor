@@ -15,7 +15,7 @@ const int max_count = 50000;		// maximum number of features to detect
 const double qlevel = 0.05;			// quality level for feature detection
 const double minDist = 2;			// minimum distance between two feature points
 
-MovingSubtractor::MovingSubtractor(bool flag): suBSENSE(), detailInformation(flag), mLastFrame(), t(), frameIdx(0) {
+MovingSubtractor::MovingSubtractor(bool flag, string path): suBSENSE(), detailInformation(flag), mLastFrame(), t(), frameIdx(1), sSaveP(path) {
 }
 
 void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) {
@@ -26,15 +26,21 @@ void MovingSubtractor::initialize(const cv::Mat& oInitImg, const cv::Mat& oROI) 
 	outputInformation("initialize finished with time : ", t.getTime());
 }
 
-void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv::Mat &delta, double learningRateOverride) {
+void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, double learningRateOverride) {
+	// Id count
 	frameIdx ++;
+	char num[100];
+	sprintf(num, "%d", frameIdx);
+	sNum = string(num);
+
 	outputInformation("operate started\n");
 	t.reset();
 	cv::Mat newFrame = _newFrame.getMat();
 	vector<uchar> status; 	// status of tracked features
 	vector<float> err;    	// error in tracking
 	vector<cv::Point2f> features1,features2;
-
+	
+	// to grey
 	cv::Mat grey0, grey1;
 	cv::cvtColor(mLastFrame, grey0, CV_RGB2GRAY);
 	cv::cvtColor(newFrame, grey1, CV_RGB2GRAY);
@@ -46,7 +52,7 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 							minDist);   		// min distance between two features
 	outputInformation("features got:", t.getTime());
 	t.reset();
-	// 2. track features
+	// track features
 	cv::calcOpticalFlowPyrLK(grey0, grey1,	// 2 consecutive images
 							features1, 			// input point position in first image
 							features2, 			// output point postion in the second image
@@ -113,11 +119,6 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 				if (flag) for (int jj = 0; jj < 3; jj ++)
 					if (!(dTransforms[ii][jj][i] > dSortedTransforms[ii][jj][iS] && dTransforms[ii][jj][i] < dSortedTransforms[ii][jj][iE])) {
 						flag = false;
-						/*cout << i << " " << ii << " " << jj << endl;
-						for (int ia = 0; ia < 2; ia ++) {
-							for (int ja = 0; ja < 3; ja ++) cout << dTransforms[ia][ja][i] << " ";
-							cout << endl;
-						}*/
 						break;
 					}
 			if (flag) {
@@ -148,52 +149,58 @@ void MovingSubtractor::work(cv::InputArray _newFrame, cv::OutputArray fgmask, cv
 	cv::warpPerspective(newFrame, mBeforTransform, resultInvert, newFrame.size());
 	cv::Mat grey2;
 	cv::cvtColor(mAfterTransform, grey2, CV_RGB2GRAY);
-	delta = grey2 - grey1;
-
-	/*
-			char num[100];
-		sprintf(num, "%d", count);
-		string ss = string(num) + ".jpg";
-		cv::imwrite(sS + "before0" + ss, mLastFrame);
-		cv::imwrite(sS + "after0" + ss, mBeforTransform);
-		cv::imwrite(sS + "compare0" + ss, delta); 
-		cv::imwrite(sS + "before1" + ss, newFrame);
-		cv::imwrite(sS + "after1" + ss, mAfterTransform);
-		cv::Mat pointed = newFrame.clone();
-		cv::Scalar color( 255, 0, 0);
-		for (int i = 0; i < (int) selectedFeaturesO.size(); i ++) 
-			cv::circle(pointed, selectedFeaturesO[i], 3, color);
-		cv::imwrite(sS + "pointed" + ss, pointed);
-		count += 1;
-	*/
+	cv::Mat delta = grey2 - grey1;
+	savePath("compare", delta);
 
 	// use the result
 	outputInformation("() operate :");
 	t.reset();
 	suBSENSE(mBeforTransform, fgmask, learningRateOverride);
 	cv::warpPerspective(fgmask, fgmask, result, newFrame.size());
+		
+	savePath("AResult", fgmask.getMat());
 	outputInformation("", t.getTime());
 	if (frameIdx > STARTMATCH) {
 		t.reset();
 		outputInformation("patch match :");
 		vector<cv::Point2i> ans;
-		suBSENSE.patch_match(newFrame, mLastFrame, ans, resultInvert);
+		cv::Mat ansMat;
+		suBSENSE.patch_match(newFrame, mLastFrame, ans, ansMat, resultInvert);
 		outputInformation("", t.getTime());
-
+		/*
+		cv::Mat Rpatch;
+		Rpatch.create(newFrame.size(), CV_8UC1);
+		Rpatch = cv::Scalar(0);
+		if (detailInformation) {
+			string nnn = sSaveP + sNum + ".txt";
+			FILE *f0 = fopen(nnn.c_str(), "w");
+			for (int i = 0; i+patch_w < newFrame.rows; i++) {
+				for (int j = 0; j+patch_w < newFrame.cols; j++) {
+					double tttt = ansNum[i*newFrame.cols + j]/52;
+					fprintf(f0, "%.3lf\t", tttt);
+					if (tttt > 1) Rpatch.data[i*newFrame.cols + j] = 255;
+				}
+				fprintf(f0, "\n");
+			}
+			fclose(f0);
+		}*/
+		savePath("match", ansMat);
+		
 		t.reset();
-		outputInformation("recover fgmask :");
-		recover(fgmask, mLastMask, ans, COVERRATE);
+		cv::warpPerspective(mLastMask, mLastMask, result, newFrame.size());
+		outputInformation("max flow :");
+		suBSENSE.randomField(newFrame, ansMat, mLastMask, fgmask);
+		savePath("BResult", fgmask.getMat());
 		outputInformation("", t.getTime());
 	}
 	t.reset();
-	outputInformation("max flow :");
-	suBSENSE.randomField(newFrame, fgmask);
-	outputInformation("", t.getTime());
-	suBSENSE.complete(fgmask);
-	t.reset();
 	outputInformation("model update :");
-	suBSENSE.update(newFrame, result, fgmask.getMat());
+	suBSENSE.update(newFrame, result);
 	outputInformation("", t.getTime());
+	if (frameIdx > 5) {
+		suBSENSE.complete(fgmask);
+		savePath("CResult", fgmask.getMat());
+	}
 	mLastFrame = newFrame.clone();
 	mLastMask = fgmask.getMat().clone();
 }
@@ -208,12 +215,17 @@ inline void MovingSubtractor::outputInformation(const string &sInfo, double num,
 	if (num >= 0) printf("%.3lf\n", num);
 	if (matrix) cout << *matrix << endl;
 }
+inline void MovingSubtractor::savePath(const string &sInfo, cv::Mat & pic) const {
+	if (!detailInformation) return ;
+	cv::imwrite(sSaveP + sInfo + sNum + ".jpg", pic);
+}
 
 void MovingSubtractor::patchmatch(const cv::Mat image, std::vector<cv::Point2i> &ans) {
 	t.reset();
 	outputInformation("patch match :");
 	cv::Mat I = (cv::Mat_<double>(3,3)<<1,0,0,0,1,0,0,0,1);
-	suBSENSE.patch_match(image, mLastFrame, ans, I);
+	cv::Mat ansNum;
+	suBSENSE.patch_match(image, mLastFrame, ans, ansNum, I);
 	outputInformation("", t.getTime());
 }
 

@@ -22,9 +22,12 @@
 
 // const for patch match
 const int patch_w  = 7;
+const int patch_w2  = 25;
 const int patch_area = patch_w * patch_w;
 const int pm_iters = 5;
 const int rs_max   = INT_MAX;
+// parameter for random field
+const double L1 = 0.6, L2 = 0.3;
 
 /*!
 	Self-Balanced Sensitivity segmenTER (SuBSENSE) change detection algorithm.
@@ -59,12 +62,12 @@ public:
 	//! returns a copy of the latest reconstructed background descriptors image
 	void getBackgroundDescriptorsImage(cv::OutputArray backgroundDescImage) const;
 	//! update the model with frame after motion
-	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix, const cv::Mat resultFrame);
+	void update(const cv::Mat &newFrame, const cv::Mat &transmatrix);
 	// patch match part
-	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix);
+	void patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat & ansMat, cv::Mat matrix);
 	void cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans);
 	// Probabilistic blocks Markov Random Fields
-	void randomField(cv::Mat & image , cv::OutputArray & fgMask);
+	void randomField(cv::Mat & image, cv::Mat & ansMat, cv::Mat & lastMat, cv::OutputArray & fgMask);
 	// final complete
 	void complete(cv::OutputArray &fgMask);
 

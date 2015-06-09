@@ -734,7 +734,7 @@ void BackgroundSubtractorSuBSENSE::getBackgroundDescriptorsImage(cv::OutputArray
 	oAvgBGDesc.convertTo(backgroundDescImage,CV_16U);
 }
 
-void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat &transmatrix, cv::Mat resultFrame) {
+void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat &transmatrix) {
 	m_oLastColorFrame = newFrame.clone();
 	cv::warpPerspective(m_oLastDescFrame, m_oLastDescFrame, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oLastFGMask, m_oLastFGMask, transmatrix, m_oImgSize);
@@ -760,8 +760,8 @@ void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat
 	cv::warpPerspective(m_oMeanFinalSegmResFrame_ST, m_oMeanFinalSegmResFrame_ST, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oUnstableRegionMask, m_oUnstableRegionMask, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oBlinksFrame, m_oBlinksFrame, transmatrix, m_oImgSize);
-	//cv::warpPerspective(m_oLastRawFGMask, m_oLastRawFGMask, transmatrix, m_oImgSize);
-	m_oLastRawFGMask = resultFrame.clone();
+	cv::warpPerspective(m_oLastRawFGMask, m_oLastRawFGMask, transmatrix, m_oImgSize);
+	// m_oLastRawFGMask = resultFrame.clone();
 	//! pre-allocated CV_8UC1 matrices used to speed up morph ops
 	cv::warpPerspective(m_oFGMask_PreFlood, m_oFGMask_PreFlood, transmatrix, m_oImgSize);
 	cv::warpPerspective(m_oFGMask_FloodedHoles, m_oFGMask_FloodedHoles, transmatrix, m_oImgSize);
@@ -822,13 +822,16 @@ void BackgroundSubtractorSuBSENSE::update(const cv::Mat &newFrame, const cv::Mat
 
 void BackgroundSubtractorSuBSENSE::complete(cv::OutputArray &fgMask) {
 	cv::Mat a = fgMask.getMat();
+	imwrite("a0.jpg", a);
 	cv::morphologyEx(a,m_oFGMask_PreFlood,cv::MORPH_CLOSE,cv::Mat());
 	m_oFGMask_PreFlood.copyTo(m_oFGMask_FloodedHoles);
 	cv::floodFill(m_oFGMask_FloodedHoles,cv::Point(0,0),UCHAR_MAX);
 	cv::bitwise_not(m_oFGMask_FloodedHoles,m_oFGMask_FloodedHoles);
 	cv::erode(m_oFGMask_PreFlood,m_oFGMask_PreFlood,cv::Mat(),cv::Point(-1,-1),3);
 	cv::bitwise_or(a,m_oFGMask_FloodedHoles,a);
+	imwrite("a1.jpg", a);
 	cv::bitwise_or(a,m_oFGMask_PreFlood,a);
+	imwrite("a2.jpg", a);
 	cv::medianBlur(a,m_oLastFGMask,m_nMedianBlurKernelSize);
 	cv::dilate(m_oLastFGMask,m_oLastFGMask_dilated,cv::Mat(),cv::Point(-1,-1),3);
 	cv::bitwise_and(m_oBlinksFrame,m_oLastFGMask_dilated_inverted,m_oBlinksFrame);
@@ -868,15 +871,17 @@ void BackgroundSubtractorSuBSENSE::improve_guess(const cv::Mat &a, const cv::Mat
 	}
 }
 
-void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat matrix) {
+void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans, cv::Mat & ansMat, cv::Mat matrix) {
 	/* Initialize with random nearest neighbor field (NNF). */
 	ans.clear();
 	ans.resize(m_nTotPxCount);
-	std::vector<int> annd;
+	std::vector<double> annd;
 	annd.resize(m_nTotPxCount);
+	ansMat.create(a.size(), CV_8UC1);
+	ansMat = cv::Scalar(0);
 
-	int aew = m_oImgSize.width - patch_w + 1, aeh = m_oImgSize.height - patch_w + 1;       /* Effective width and height (possible upper left corners of patches). */
-	int bew = m_oImgSize.width - patch_w + 1, beh = m_oImgSize.height - patch_w + 1;
+	int aew = a.cols - patch_w2 + 1, aeh = a.rows - patch_w2 + 1;       /* Effective width and height (possible upper left corners of patches). */
+	int bew = a.cols - patch_w2 + 1, beh = a.rows - patch_w2 + 1;
 	std::vector<cv::Point2f> p1, p2;
 	for (int ay = 0; ay < aeh; ay++)
 		for (int ax = 0; ax < aew; ax++) p1.push_back(cv::Point2f(ax, ay));
@@ -891,14 +896,29 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 			int by = int(p2[p++].y);
 			if (!(0<=bx && bx<m_oImgSize.width && 0<=by && by<m_oImgSize.height)) {
 				bx = rand()%bew; by = rand()%beh;
+				ans[idx] = cv::Point2i(bx, by);
+				annd[idx] = dist(a, b, ax, ay, bx, by);
+				for (int ii = 0; ii < pm_iters; ii++) {
+					bx = rand()%bew; by = rand()%beh;
+					int disnow = dist(a, b, ax, ay, bx, by);
+					if (disnow < annd[idx]) {
+						ans[idx] = cv::Point2i(bx, by);
+						annd[idx] = disnow;
+					}
+				}
+			} else {
+				ans[idx] = cv::Point2i(bx, by);
+				annd[idx] = dist(a, b, ax, ay, bx, by);
 			}
-			ans[idx] = cv::Point2i(bx, by);
-			annd[idx] = dist(a, b, ax, ay, bx, by);
+			annd[idx] /= patch_w2 * patch_w2;
+			if (annd[idx] / 52 >= 1) ansMat.data[idx] = 255;
+			else ansMat.data[idx] = int(annd[idx] / 52.0 * 255);
 		}
 	}
 	
+	/*
 	for (int iter = 0; iter < pm_iters; iter++) {
-		/* In each iteration, improve the NNF, by looping in scanline or reverse-scanline order. */
+		// In each iteration, improve the NNF, by looping in scanline or reverse-scanline order. 
 		int ystart = 0, yend = aeh, ychange = 1;
 		int xstart = 0, xend = aew, xchange = 1;
 		if (iter % 2 == 1) {
@@ -907,13 +927,13 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 		}
 		for (int ay = ystart; ay != yend; ay += ychange)
 			for (int ax = xstart; ax != xend; ax += xchange) { 
-				/* Current (best) guess. */
+				// Current (best) guess. 
 				size_t nPxIter = ay*m_oImgSize.width + ax;
 				cv::Point2i v = ans[nPxIter];
 				int xbest = v.x, ybest = v.y;
 				int dbest = annd[nPxIter];
 
-				/* Propagation: Improve current guess by trying instead correspondences from left and above (below and right on odd iterations). */
+				// Propagation: Improve current guess by trying instead correspondences from left and above (below and right on odd iterations). 
 				if ((unsigned) (ax - xchange) < (unsigned) aew) {
 					cv::Point2i vp = ans[nPxIter-xchange];
 					int xp = vp.x + xchange, yp = vp.y;
@@ -927,11 +947,11 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 						improve_guess(a, b, ax, ay, xbest, ybest, dbest, xp, yp);
 				}
 
-				/* Random search: Improve current guess by searching in boxes of exponentially decreasing size around the current best guess. */
+				// Random search: Improve current guess by searching in boxes of exponentially decreasing size around the current best guess. 
 				int rs_start = rs_max;
 				if (rs_start > MAX(m_oImgSize.width, m_oImgSize.height)) rs_start = MAX(m_oImgSize.width, m_oImgSize.height);
 				for (int mag = rs_start; mag >= 1; mag /= 2) {
-					/* Sampling window */
+					// Sampling window 
 					int xmin = MAX(xbest-mag, 0), xmax = MIN(xbest+mag+1,bew);
 					int ymin = MAX(ybest-mag, 0), ymax = MIN(ybest+mag+1,beh);
 					int xp = xmin+ ((xmax-xmin) == 0? 0 : rand()%(xmax-xmin));
@@ -943,6 +963,7 @@ void BackgroundSubtractorSuBSENSE::patch_match(const cv::Mat &a, const cv::Mat &
 				annd[nPxIter] = dbest;
 			}
     }
+	*/
 }
 
 void BackgroundSubtractorSuBSENSE::cover(cv::Mat &a, const cv::Mat &b, std::vector<cv::Point2i> &ans) {
@@ -965,25 +986,29 @@ void BackgroundSubtractorSuBSENSE::cover(cv::Mat &a, const cv::Mat &b, std::vect
 		}
 }
 
-void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image , cv::OutputArray & fgMask) {
+void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image, cv::Mat & ansMat, cv::Mat & lastMat, cv::OutputArray & fgMask) {
 	cv::Mat a = fgMask.getMat();
+	cv::addWeighted(a, 0.5, ansMat, 0.5, 0, a);
+	cv::addWeighted(a, 0.8, lastMat, 0.2, 0, a);
     int aew = a.cols - patch_w + 1, aeh = a.rows - patch_w + 1;
 	int ww = (aew - 1) / patch_w + 1, hh = (aeh - 1) / patch_w + 1;
 	int size = ww * hh;
 	Graph *graph = new Graph(size);
 	
-	std::vector<int> foreNum;
+	std::vector<double> foreNum;
 	foreNum.reserve(size);
 	for (int ay = 0; ay < aeh; ay+=patch_w)
 		for (int ax = 0; ax < aew; ax+=patch_w) {
-			int ss = 0;
+			float ss = 0; //, s2 = 0;
 			for (int ii = 0; ii < patch_w; ii ++)
 				for (int jj = 0; jj < patch_w; jj ++)
-					if (a.data[(ay + ii) * image.cols + ax + jj] == 0) ss ++;
+					ss += 1 - a.data[(ay + ii) * image.cols + ax + jj]/255.0;
+					//if (a.data[(ay + ii) * image.cols + ax + jj] == 0) ss ++;
 			foreNum.push_back(ss);
 
+			// float ps = L1 * MIN(1.0f, (ss + 0.0) / patch_area / 0.5) + L2 * MAX(0.0f, MIN(1.0, ((s2 + 0.0) / patch_area - 0.3) / 0.4));
 			float ps = (ss + 0.0) / patch_area;
-
+			// if (s2 < 8) ps = MAX(0.0f, ps - 0.4);
 			float d = MIN(1.0f, ps * 2);
 			d = MAX(1e-20f, d);
 			float d1 = -log(d);
@@ -1053,9 +1078,17 @@ void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image , cv::OutputArray
 	lebal.resize(size);
 
 	cv::Mat aaa = a.clone();
+	aaa = cv::Scalar(0);
+	cv::Mat bbb = aaa.clone();
 	for (int ay = 0; ay < aeh; ay+=patch_w)
 		for (int ax = 0; ax < aew; ax+=patch_w) {
 			int idx = ay/patch_w * ww + ax/patch_w;
+			if (graph->check_type(idx))
+				for (int ii = 0; ii < patch_w; ii ++)
+					for (int jj = 0; jj < patch_w; jj ++) {
+						size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
+						bbb.data[anPxIter] = 255;
+					}
 			bool f1 = false, f2 = false;
 			if (ax > 0) {
 				if (graph->check_type(idx-1)) f1 = true;
@@ -1078,12 +1111,14 @@ void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image , cv::OutputArray
 					for (int jj = 0; jj < patch_w; jj ++) {
 						size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
 
-					aaa.data[anPxIter] = 0;
+					aaa.data[anPxIter] = 255;
 				}
 				lebal[idx] = 1;
 				continue;
 			}
 		}
+	cv::imwrite("A.jpg", bbb);
+	cv::imwrite("B.jpg", aaa);
 
 	for (int ay = 0; ay < aeh; ay+=patch_w)
 		for (int ax = 0; ax < aew; ax+=patch_w) {
@@ -1093,14 +1128,23 @@ void BackgroundSubtractorSuBSENSE::randomField(cv::Mat & image , cv::OutputArray
 			if (ay > 0 && lebal[idx-ww]) flag = true;
 			if (ax + patch_w < aew && lebal[idx+1]) flag = true;
 			if (ay + patch_w < aeh && lebal[idx+ww]) flag = true;
-			if (flag) continue;
-			int goa = graph->check_type(idx)? 255:0;
-			for (int ii = 0; ii < patch_w; ii ++)
-				for (int jj = 0; jj < patch_w; jj ++) {
-					size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
-					a.data[anPxIter] = goa;
-					aaa.data[anPxIter] = 255;
-				}
+			if (flag) {
+				// on the edge
+				for (int ii = 0; ii < patch_w; ii ++)
+					for (int jj = 0; jj < patch_w; jj ++) {
+						size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
+						a.data[anPxIter] = a.data[anPxIter]>155? 255:0;
+					}
+			} else {
+				// full the patch
+				int goa = graph->check_type(idx)? 255:0;
+				for (int ii = 0; ii < patch_w; ii ++)
+					for (int jj = 0; jj < patch_w; jj ++) {
+						size_t anPxIter = (ay + ii) * m_oImgSize.width + ax + jj;
+						a.data[anPxIter] = goa;
+						aaa.data[anPxIter] = 255;
+					}
+			}
 		}
 	cv::imwrite("C.jpg", aaa);
 	a.convertTo(fgMask, CV_8U);
